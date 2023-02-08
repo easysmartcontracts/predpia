@@ -1,0 +1,100 @@
+/* particularizació para la herramienta */
+@media print {
+	#botonesFilePrint {
+		display:none;
+	}
+	
+	#pills-tab {
+		display:none;
+	}
+	#divTabla{
+		width:95%;
+	}
+	#disclaimer{
+		width:95%;
+		font-size: 10px;
+	}
+}
+@media (min-width: 1400px) {
+	.container {
+		max-width: 1350px;
+	}
+}
+
+
+.bg-primary {
+    background-color: #3492eb !important;
+}
+#btnGuardar {
+	text-decoration:none;
+	color: #ffffff;
+}
+#btnPrint{
+	color: #ffffff;
+}
+
+a.bg-primary:hover, a.bg-primary:focus,
+button.bg-primary:hover,
+button.bg-primary:focus {
+    background-color: #af5600 !important;
+}
+
+.border-primary {
+    border-color: #3492eb !important;
+}
+
+
+.nav-link {
+	color: #3492eb;
+}
+
+.nav-pills .nav-link.active, .nav pills .nav-link:active {
+	color: #ffffff;
+	background-color: #3492eb;
+}
+
+.nav-link.hover, .nav-link.focus, .nav-link:hover, .nav-link:focus {
+	 color: #be5e00;
+
+}
+
+
+.btn-primary  {
+    background-color: #3492eb;
+    border-color: #3492eb;
+}
+
+.btn-primary:hover {
+    color: #ffffff;
+    background-color: #be5e00;
+    border-color: #af5600;
+}
+
+.btn-primary:focus, .btn-primary.focus {
+    box-shadow: 0 0 0 0.2rem rgba(226, 112, 0, 0.5);
+}
+
+.btn-primary.disabled, .btn-primary:disabled {
+    color: #212529;
+    background-color: #3492eb;
+    border-color: #3492eb;
+}
+
+.btn-primary:not(:disabled):not(.disabled):active, .btn-primary:not(:disabled):not(.disabled).active, .show > .btn-primary.dropdown-toggle {
+    color: #212529;
+    background-color: #af5600;
+    border-color: #9f4f00;
+}
+
+.btn-primary:not(:disabled):not(.disabled):active:focus, .btn-primary:not(:disabled):not(.disabled).active:focus, .show > .btn-primary.dropdown-toggle:focus {
+    box-shadow: 0 0 0 0.2rem rgba(226, 112, 0, 0.5);
+}
+
+
+.text-primary {
+    color: #3492eb !important;
+}
+
+a.text-primary:hover, a.text-primary:focus {
+    color: #af5600 !important;
+}

@@ -1,0 +1,561 @@
+document.querySelectorAll('.nav-link').forEach(linkItem => {linkItem.addEventListener('click', _ => {window.scrollTo(0, 0)  })  })
+// definimos los arrays con el scope del Document
+var aplicabilidades = new Array(160).fill(0); 
+var mitigaciones = new Array(160).fill(1);
+var probabilidades = new Array(160).fill(1);
+var impactos = new Array(160).fill(1);
+var NRi_Mitigated = new Array(160).fill(0); 
+var NRi_riesgo = new Array(160).fill(0);
+//const mitigacionValue = [1, 0.7, 0.5, 0.1]; //mapear range a sus valores
+
+// valores impacto/probabilidades (coinciden)
+const mitigTxt = [[1,"Niet gemitigeerd"],[0.7,"Beperkt gemitigeerd"],[0.5,"Significant gemitigeerd"],[0.1,"Gemitigeerd"]];
+const probTxt = [[0.2,"Onwaarschijnlijk"],[0.5,"Laag"],[0.7,"Hoog"],[1,"Erg Hoog"]];
+const impactoTxt = [[0.2,"Heel beperkt"],[0.5,"Beperkt"],[0.7,"Significant"],[1,"Erg significant"]];
+const nivelTxt = [[0.2,"Laag risico"],[0.5,"Medium risico"],[0.7,"Hoog risico"],[0.9,"Heel erg risico"]]
+const iconTxt =[[0,"alert-danger","#exclamation-triangle-fill"],
+				[1,"alert-warning","#exclamation-triangle-fill"],
+				[2,"alert-primary","#info-fill"],
+				[3,"alert-success","#check-circle-fill"]];
+
+var NRintrinseco=0;
+var NRresidual=0;
+var EIPDoblig=0;
+
+function evaluarOp(id,index,tipo){
+	var m_rng = document.getElementById(index + '-m'); // range
+	var ma_rng = document.getElementById(index + '-m-a'); // alerta mitigaciones
+	var r_rng = document.getElementById(index + '-' + tipo); // alerta range
+	var ra_rng = document.getElementById(index + '-' + tipo +'-a'); // alerta txt 
+	var otrosFact;
+	if (tipo=='a'){  // switch aplicable
+		var chk = document.getElementById(id);
+		if(otrosFact=document.getElementById(index+'-otrosFact')){
+			if (otrosFact.value==""){
+				alert("Vul in risicofactor");
+				chk.checked=false;
+				return;
+			}
+		}
+		
+		if (chk.checked == true){
+			aplicabilidades[index] = aplicabilidades[index]+1;
+        }
+        if (chk.checked == false){
+			aplicabilidades[index] = aplicabilidades[index]-1;
+		}
+		if (aplicabilidades[index]<=0){
+			aplicabilidades[index]=0;
+			mitigaciones[index]=1;
+			probabilidades[index]=1;
+			impactos[index]=1;
+		}
+		
+		
+		// inicializar alertas, habilitar/deshabilitar y mostrar mensajes
+		inicializarAlertas(index);
+		
+		if (id.substring(id.length-5)=='otros'){
+			var otros_text=document.getElementById(index +'-otros');
+			otros_text.classList.toggle("d-none");
+		}
+	} 
+    if (tipo=='m' && aplicabilidades[index]>0){ // slider mitigaciones
+		mitigaciones[index]=mitigTxt[r_rng.value][0]; //mapear al valor del range
+		//	limpiar y actualizar
+		limpiarAlertas(ra_rng);   
+		mostrarAlertas(ra_rng,r_rng,tipo);
+		}
+	if (tipo=='p' && aplicabilidades[index]>0){ // slider probabilidades
+		probabilidades[index]=probTxt[r_rng.value][0]; //mapear al valor
+		//	limpiar y actualizar
+		limpiarAlertas(ra_rng);   
+		mostrarAlertas(ra_rng,r_rng,tipo);
+	}
+	if (tipo=='i' && aplicabilidades[index]>0){ // slider impactos	
+		impactos[index]=impactoTxt[r_rng.value][0]; //mapear al valor
+		//	limpiar y actualizar
+		limpiarAlertas(ra_rng);   
+		mostrarAlertas(ra_rng,r_rng,tipo);
+	}
+	
+	// calculamos nivel de riesgo y nivel de riesgo Mitigated
+	var aplicable = aplicabilidades[index];
+	if (aplicabilidades[index] >=1){ aplicable = 1;}
+	if(NRi[index]==0){ // los que no tienen nivel de riesgo tasado: Otros y Seguridad
+		// Si el impacto es muy alto, Very Significant = 1, entonces el nivel de riesgo	
+		// va a ser muy alto independientemente de la probabilidad, asignamos prob=1,
+		NRi_riesgo[index] = aplicable*probabilidades[index]*impactos[index];
+		if (impactos[index]==1){
+			NRi_riesgo[index]= aplicable*1*impactos[index];
+		}
+	} else {
+		NRi_riesgo[index] = aplicable*NRi[index]*probabilidades[index];
+	}
+	NRi_Mitigated[index] = NRi_riesgo[index]*mitigaciones[index];
+	NRintrinseco = calcularNRintrinseco();
+	NRresidual = calcularNRresidual();
+	EIPDoblig = calcularEIPDreg();
+	informe();
+}	
+
+function mostrarAlertas(ra_rng,r_rng,tipo){
+	var i;
+	
+	if (tipo=='m'){
+		ra_rng.classList.add(iconTxt[r_rng.value][1]);
+		ra_rng.innerHTML = '<svg class="bi flex-shrink-0 me-2" width="20" height="20" role="img"><use xlink:href="'+iconTxt[r_rng.value][2] + '"/></svg><div>' + mitigTxt[r_rng.value][1]+'</div>';
+	}
+	if (tipo=='p'){
+		//hay que reordenar los índices backwards para los iconos (value:0->3 caso peor, 1->2, 2->3, 3->0)
+		i=3-r_rng.value
+		ra_rng.classList.add(iconTxt[i][1]);
+		ra_rng.innerHTML = '<svg class="bi flex-shrink-0 me-2" width="20" height="20" role="img"><use xlink:href="'+iconTxt[i][2] + '"/></svg><div>' + probTxt[r_rng.value][1]+'</div>';
+	}
+	if (tipo=='i'){
+		//hay que reordenar los índices backwards para los iconos (value:0->3 caso peor, 1->2, 2->3, 3->0)
+		i=3-r_rng.value
+		ra_rng.classList.add(iconTxt[i][1]);
+		ra_rng.innerHTML = '<svg class="bi flex-shrink-0 me-2" width="20" height="20" role="img"><use xlink:href="'+iconTxt[i][2] + '"/></svg><div>' + impactoTxt[r_rng.value][1]+'</div>';
+	}
+	
+	ra_rng.classList.remove("d-none"); //mostrarlo		
+}
+
+function limpiarAlertas(a_rng){
+	if (a_rng.classList.contains("alert-danger")){ a_rng.classList.remove("alert-danger")};
+	if (a_rng.classList.contains("alert-warning")){ a_rng.classList.remove("alert-warning")};
+	if (a_rng.classList.contains("alert-primary")){ a_rng.classList.remove("alert-primary")};
+	if (a_rng.classList.contains("alert-success")){ a_rng.classList.remove("alert-success")};
+	a_rng.classList.add("d-none") //hide
+}
+
+function inicializarAlertas(index){
+	var m_rng = document.getElementById(index + '-m'); // range
+	var p_rng = document.getElementById(index + '-p');
+	var i_rng = document.getElementById(index + '-i');
+	var a_rng;
+	if (m_rng) {
+		a_rng = document.getElementById(index + '-m-a');
+		limpiarAlertas(a_rng);
+		m_rng.disabled = false;
+		if (aplicabilidades[index]==0) {
+			m_rng.disabled = true;
+			m_rng.value = 0;
+		} else mostrarAlertas(a_rng,m_rng,'m');
+	}
+	if (p_rng) {
+		a_rng = document.getElementById(index + '-p-a');
+		limpiarAlertas(a_rng);
+		p_rng.disabled = false;
+		if (aplicabilidades[index]==0){
+			p_rng.disabled = true;
+			p_rng.value = 3;
+		} else mostrarAlertas(a_rng,p_rng,'p');
+	}
+	if (i_rng) {
+		a_rng = document.getElementById(index + '-i-a');
+		limpiarAlertas(a_rng);
+		i_rng.disabled = false;
+		if (aplicabilidades[index]==0){
+			i_rng.disabled = true;
+			i_rng.value = 3;
+		} else mostrarAlertas(a_rng,i_rng,'i');
+	}
+}
+function calcularNRintrinseco(){
+	NRintrinseco = NRi_riesgo[1]; // incializar con el primer valor
+	for(let i=2; i<=NRi.length;i++){ //en i=1 NRint=0
+		NRintrinseco = NRintrinseco + NRi_riesgo[i]-(NRintrinseco * NRi_riesgo[i]);
+	}
+
+	return NRintrinseco;
+}
+
+function calcularNRresidual(){
+	NRresidual = NRi_Mitigated[1]; // inciicalizar con el primer valor
+	for(let i=2; i<=NRi.length;i++){ //en i=1 NRint=0
+		NRresidual = NRresidual  + NRi_Mitigated[i]-(NRresidual * NRi_Mitigated[i]);
+	}
+
+	return NRresidual;
+}
+
+function riesgoTxt(riesgo){
+	var txt='Low Risk';
+	var i=0;
+	var j=0;
+	for (i=0;i<4;i++){
+		if (riesgo >= nivelTxt[i][0]) {j=i};
+	}
+	txt = "("+riesgo.toFixed(3)+") "+nivelTxt[j][1];
+	return [j,txt];
+}
+function informe(){
+	var today = new Date();
+	var dd = String(today.getDate()).padStart(2, '0');
+	var mm = String(today.getMonth() + 1).padStart(2, '0'); //January is 0!
+	var yyyy = today.getFullYear();
+	var i=0;
+	today = dd + '/' + mm + '/' + yyyy;
+	var fecha = document.getElementById('fecha');
+	fecha.innerHTML =  today;
+	//R intrínseco
+	var r = document.getElementById('r-int');
+	var resultado = riesgoTxt(NRintrinseco);
+	limpiarAlertas(r);
+	//hay que reordenar los índices backwards para los iconos (value:0->3 caso peor, 1->2, 2->3, 3->0)
+	i=3-resultado[0];
+	r.classList.add(iconTxt[i][1]);
+	r.innerHTML = '<svg class="bi flex-shrink-0 me-2" width="20" height="20" role="img"><use xlink:href="'+iconTxt[i][2] + '"/></svg><div>' + resultado[1]+'</div>';
+	r.classList.remove('d-none'); // mostrarlo ya que limpiarAlertas lo ha ocultado
+	//EIPD
+	var eipdTxt = document.getElementById("EIPD");
+	limpiarEIPD(eipdTxt);
+	if (NRintrinseco>=0.7){
+		eipdTxt.innerHTML='DPIA NOODZAKELIJK';
+		eipdTxt.classList.add("text-bg-warning");
+		eipdTxt.classList.remove("d-none");
+		//eipdTxt.classList.add("text-bg-warning");
+	} 
+	if (EIPDoblig>0){
+		eipdTxt.innerHTML='RISCO IS HOOG, DPIA UITVOERING IS VERPLICHT';
+		eipdTxt.classList.add("text-bg-danger");
+		eipdTxt.classList.remove("d-none");
+	}
+	
+	// R Residual
+	r = document.getElementById('r-res');
+	limpiarAlertas(r);
+	resultado = riesgoTxt(NRresidual);
+	i=3-resultado[0]; 
+	r.classList.add(iconTxt[i][1]);
+	r.innerHTML = '<svg class="bi flex-shrink-0 me-2" width="20" height="20" role="img"><use xlink:href="'+iconTxt[i][2] + '"/></svg><div>' + resultado[1]+'</div>';
+	r.classList.remove('d-none'); // mostrarlo ya que limpiarAlertas lo ha ocultado
+	
+	// Loop on operaciones 
+	// rellenar tabla
+	var fila;
+	var op;
+	var opOtros;
+	var filaTxt;
+	// vaciar
+	for (let i=1; i<=nTabs;i++){ 
+		fila = document.getElementById('inf-fila-' + i);
+		fila.innerHTML="";
+	}
+	for (let i=1; i<NRi.length; i++){
+		op = document.getElementById('op-' + i);
+		fila = TabOp[i] // tab al que pertenece esta operación
+		fila = document.getElementById('inf-fila-' + fila);
+		if (aplicabilidades[i] != 0){
+			filaTxt = "<li>";
+			if (opOtros=document.getElementById(i+'-otrosFact')){
+				filaTxt = filaTxt + opOtros.value;
+			} else{
+				filaTxt = filaTxt + op.innerHTML;
+			}
+			if (document.getElementById(i+'-i')){
+				filaTxt = filaTxt + '. Impact: ' + impactoTxt[document.getElementById(i+'-i').value][1];
+			}
+			if (document.getElementById(i+'-p')){
+				filaTxt = filaTxt + '. Waarschijnlijkheid: ' + probTxt[document.getElementById(i+'-p').value][1];
+			}
+			if (document.getElementById(i+'-m')){
+				filaTxt = filaTxt + '. Mitigatie niveau: ' + mitigTxt[document.getElementById(i+'-m').value][1];
+			}
+			filaTxt = filaTxt + "</li>"; // por alguna razón automáticamente al abrir un <li> lo cierra y no puedo concatenar
+			fila.innerHTML = fila.innerHTML + filaTxt;
+			
+		} 
+	}
+	for (let i=1; i<=nTabs;i++){ // completamos las que están vacías
+		fila = document.getElementById('inf-fila-' + i);
+		if(fila.innerHTML==""){fila.innerHTML = fila.innerHTML + "<li>Geen risicofactoren gespecificeerd</li>";}
+	}
+}
+
+function limpiarEIPD(eipd){
+	eipd.innerHTML ='';
+	if (eipd.classList.contains("text-bg-danger")){ eipd.classList.remove("text-bg-danger")};
+	if (eipd.classList.contains("text-bg-warning")){ eipd.classList.remove("text-bg-warning")};
+	eipd.classList.add("d-none") //hide
+}
+
+function guardar(){
+	var elementos;
+	var i;
+	var fileContent='';
+	window.localStorage.clear;
+	
+	elementos = document.querySelectorAll('input[type="checkbox"]');
+	for (i=0;i<elementos.length;i++){
+		fileContent = fileContent + elementos[i].id + ',' + elementos[i].checked + '\n';
+	}
+	elementos = document.querySelectorAll('input[type="range"]');
+		for (i=0; i<elementos.length;i++){
+			fileContent = fileContent + elementos[i].id + ',' + elementos[i].value + '\n';
+	}
+	elementos = document.querySelectorAll('input[type="text"]');
+		for (i=0; i<elementos.length;i++){
+			fileContent = fileContent + elementos[i].id + ',' + elementos[i].value + '\n';
+	}
+	
+	// Guardar archivo con HTML 5
+	// ojo el evento tiene que estar en un "a" para que funcione el href.
+	alert("The file with the data is being downloaded");
+	var fileName = "AEPD_risks.txt";
+	var myFile = new Blob([fileContent], {type: 'text/plain,charset=utf-8'});
+	window.URL = window.URL || window.webkitURL;
+	var dlBtn = document.getElementById("btnGuardar");
+	dlBtn.setAttribute("href", URL.createObjectURL(myFile));
+	//dlBtn.setAttribute('href','data:text/plain;charset=utf-8,' + encodeURIComponent(fileContent));
+	dlBtn.setAttribute("download", fileName);
+}
+
+function fillFromLocalStorage(){
+	var elementos;
+	var valor;
+	var elemento;
+	var i;
+	var index;
+	var tipo;
+	var error=0;
+	// primero los textbox para evitar el msg de error al estar activos sin texto
+	elementos = document.querySelectorAll('input[type="text"]');
+	for (i=0; i<elementos.length;i++){
+		elemento=elementos[i];
+
+		if (elemento.id in localStorage){
+			if(localStorage.getItem(elemento.id)){
+				elementos[i].value=localStorage.getItem(elementos[i].id); // al ser string no hace fHigh la conversión JSON
+				// llamar a evaluarOp solo si está activado(en el bucle anterior)
+				index = elemento.id.split("-")[0];
+				tipo = elemento.id.split("-")[1];
+			}
+		} else {error = error + 1;}
+	}
+	
+	elementos = document.querySelectorAll('input[type="checkbox"]');
+	for (i=0; i<elementos.length;i++){
+		elemento=elementos[i];
+		
+		if (elemento.id in localStorage){
+			if(localStorage.getItem(elemento.id)){
+				valor = JSON.parse(localStorage.getItem(elemento.id)); // ojo esto es un string
+				if (valor==false) {
+					elemento.checked = false;
+				} 
+				else {
+					elemento.checked = true;
+				}
+				// llamar a evaluarOp sólo si está activado
+				index = elemento.id.split("-")[0];
+				//console.log("checkbox id: "+elemento.id+ " elemento split:" + elemento.id.split("-"));
+				if (valor==true) { evaluarOp(elemento.id,index,'a'); }
+			}
+		} else {error = error + 1;}
+	}
+	elementos = document.querySelectorAll('input[type="range"]');
+	for (i=0; i<elementos.length;i++){
+		elemento=elementos[i];
+
+		if (elemento.id in localStorage){
+			if(localStorage.getItem(elemento.id)){
+				elementos[i].value=localStorage.getItem(elementos[i].id); // esto parece funcinar sin la conversión JSON
+				// llamar a evaluarOp solo si está activado(en el bucle anterior)
+				index = elemento.id.split("-")[0];
+				tipo = elemento.id.split("-")[1];
+				if (aplicabilidades[index]>0) { evaluarOp(elemento.id,index,tipo); }
+			} 
+		} else { error = error + 1; }
+	}
+	
+	if (error >0) {
+		alert('An error occurred while processing the data. Make sure the file was generated when saving with this tool');
+		return;
+	
+	}
+	
+
+}
+
+function fillFromFile(dict){
+	var elementos;
+	var valor;
+	var elemento;
+	var i;
+	var index;
+	var tipo;
+	var error = 0;
+	// primero los textbox para evitar el msg de error al estar activos sin texto
+	elementos = document.querySelectorAll('input[type="text"]');
+	for (i=0; i<elementos.length;i++){
+		elemento=elementos[i];
+			
+		if (elemento.id in dict){
+			if(dict[elemento.id]){
+				elementos[i].value=dict[elementos[i].id]; // al ser string no hace fHigh la conversión JSON
+				// llamar a evaluarOp solo si está activado(en el bucle anterior)
+				index = elemento.id.split("-")[0];
+				tipo = elemento.id.split("-")[1];
+			}
+		} else { error = error + 1; break; } //salir del bucle}		
+			
+	}
+	
+	elementos = document.querySelectorAll('input[type="checkbox"]');
+	for (i=0; i<elementos.length;i++){
+		elemento=elementos[i];
+		
+		if (elemento.id in dict){
+			if(dict[elemento.id]){
+				valor = JSON.parse(dict[elemento.id]); // ojo esto es un string
+				if (valor==false) {
+					elemento.checked = false;
+				} 
+				else {
+					elemento.checked = true;
+				}
+				// llamar a evaluarOp sólo si está activado
+				index = elemento.id.split("-")[0];
+				//console.log("checkbox id: "+elemento.id+ " elemento split:" + elemento.id.split("-"));
+				if (valor==true) { evaluarOp(elemento.id,index,'a'); }
+		
+			}
+		}  else { error = error + 1; break; } //salir del bucle}		
+	}
+	
+	elementos = document.querySelectorAll('input[type="range"]');
+	for (i=0; i<elementos.length;i++){
+		elemento=elementos[i];
+			
+		if (elemento.id in dict){
+			if(dict[elemento.id]){
+				elementos[i].value=dict[elementos[i].id]; 
+				// llamar a evaluarOp solo si está activado(en el bucle anterior)
+				index = elemento.id.split("-")[0];
+				tipo = elemento.id.split("-")[1];
+				if (aplicabilidades[index]>0) { evaluarOp(elemento.id,index,tipo); }
+			}
+		} else { error = error + 1; break; } //salir del bucle}		
+	}
+	
+	if (error > 0) {
+		alert('An error occurred while processing the data. Make sure the file was generated when saving with this tool');
+		return;
+	}
+}
+
+
+function cargarFile(){ 
+
+	var btnCargarFile = document.getElementById('btnCargarFile');
+	var dict={}
+	
+	var file = btnCargarFile.files[0];
+	if (file.length == 0) { alert("Error: No file selected");}
+	var fr = new FileReader();
+	fr.addEventListener('load',function(){ //ejecutar cuando  finaliza la carga
+		dict = procesarArchivo(fr.result);
+		fillFromFile(dict);
+	});
+	fr.addEventListener('error', function () {
+		alert('Error: An error has occurred while reading the file');
+	});
+	fr.readAsText(file);
+	
+	btnCargarFile.value = ''; // borramos el fileinput para que podamos recargar el mismo nombre de archivo
+}
+
+function procesarArchivo(fileContent){
+	var arr = fileContent.split(/\r?\n/); // separar líneas regexp
+	var i= arr.length;
+	// al escribir el archivo con fileconten + "\n" al final del archivo tenemos una línea en blanco!
+	// creamos un diccionario y ya podemos pasarlo 
+	var dict={};
+	for (i=0; i<arr.length-1; i++){
+		dict[arr[i].split(',')[0]] = arr[i].split(',')[1];
+	}
+	//console.log(dict);
+	return dict;
+	//for (let k in dict){
+	//	console.log(k + ' : ' + dict[k]);
+	//}
+}
+
+
+
+const NRi=[-1,0.7,0.7,0.7,0.5,0.5,0.7,0.7,0.7,0.9,0.2,0.5,0.2,0.5,0.5,0.9,0.7,0.7,0.7,0.7,0.7,0.9,0.5,0.5,0.7,0.5,0.5,0.5,0.5,0.5,0.7,0.5,0.5,0.7,0.9,0.7,0.9,0.9,0.7,0.9,0.5,0.5,0.5,0.5,0.7,0.7,0.9,0.9,0.5,0.5,0.7,0.7,0.9,0.9,0.9,0.9,0.7,0.5,0.9,0.7,0.5,0.7,0.2,0.7,0.7,0.9,0.7,0.5,0.5,0.5,0.7,0.7,0.7,0.9,0.7,0.7,0.5,0.7,0.7,0.5,0.5,0.5,0.5,0.5,0.7,0.5,0.2,0.5,0.5,0.5,0.5,0.5,0.7,0.5,0.5,0.7,0.7,0.5,1,0.7,0.5,0.5,0.5,0.7,1,1,0.7,1,1,1,1,1,1,1,1,0.7,0.7,0.7,0.7,0.7,0.5,0.7,0.7,0.5,0.5,0.5,0.7,0.5,0.5,0.5,0.5,0.2,0.2,0.7,0.9,0.5,0.7,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
+
+var TabOp = [-1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,3,3,3,3,3,3,3,3,4,4,4,4,4,4,4,4,4,4,4,4,4,4,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,8,8,8,8,8,8,8,8,8,8,8,9,9,9,10,10,10,10,10,10,10,10,10,10,11,11,11,11,11,11,11,11];
+
+
+
+var nTabs = 11;
+
+var EIPDreg = new Array(50).fill(0);
+
+function calcularEIPDreg() {
+    EIPDreg[1] = Math.min(((aplicabilidades[79]*aplicabilidades[25]*aplicabilidades[44]*aplicabilidades[45])+aplicabilidades[1])*(aplicabilidades[20]+aplicabilidades[122]),1);
+    EIPDreg[2] = Math.min((aplicabilidades[46]+aplicabilidades[47]+aplicabilidades[48]+aplicabilidades[49]+aplicabilidades[50])*(aplicabilidades[37]+aplicabilidades[39]),1);
+    EIPDreg[3] = Math.min(aplicabilidades[6]*aplicabilidades[44]*aplicabilidades[85]*(aplicabilidades[46]+aplicabilidades[47]+aplicabilidades[48]+aplicabilidades[49]+aplicabilidades[50]),1);
+    EIPDreg[4] = Math.min((aplicabilidades[1]+aplicabilidades[2]+aplicabilidades[3])+(aplicabilidades[82]+aplicabilidades[83]+aplicabilidades[84])*aplicabilidades[130]+aplicabilidades[21]*aplicabilidades[36]*aplicabilidades[124]+aplicabilidades[1]*(aplicabilidades[31]+aplicabilidades[125])*aplicabilidades[43],1);
+    EIPDreg[5] = Math.min(aplicabilidades[13]*(aplicabilidades[106]+aplicabilidades[107]+aplicabilidades[20]+aplicabilidades[122]+aplicabilidades[140]),1);
+    EIPDreg[6] = Math.min((aplicabilidades[6]+aplicabilidades[8])*aplicabilidades[44],1);
+    EIPDreg[7] = Math.min(aplicabilidades[23]+aplicabilidades[24]+aplicabilidades[29]+aplicabilidades[32]+aplicabilidades[33]+aplicabilidades[34]+aplicabilidades[37]+aplicabilidades[39]+aplicabilidades[42],1);
+    EIPDreg[8] = Math.min(aplicabilidades[45]+aplicabilidades[46]+aplicabilidades[47]+aplicabilidades[48]+aplicabilidades[49]+aplicabilidades[50],1);
+    EIPDreg[9] = Math.min((aplicabilidades[91]+aplicabilidades[92])+((aplicabilidades[89]+aplicabilidades[90])*aplicabilidades[97]),1);
+    EIPDreg[10] = Math.min(aplicabilidades[52]+aplicabilidades[57]+aplicabilidades[58]+aplicabilidades[62]+aplicabilidades[63]+aplicabilidades[64]+aplicabilidades[65],1);
+    EIPDreg[11] = Math.min((aplicabilidades[77]+aplicabilidades[74]+aplicabilidades[73])+(aplicabilidades[10]*aplicabilidades[71]*aplicabilidades[72]),1);
+    EIPDreg[12] = Math.min((aplicabilidades[15]+aplicabilidades[16]+aplicabilidades[17]+aplicabilidades[18])+(aplicabilidades[130]*aplicabilidades[82]*aplicabilidades[19]),1);
+    EIPDreg[13] = Math.min((aplicabilidades[126]*(aplicabilidades[36]+aplicabilidades[34]))+aplicabilidades[66],1);
+    EIPDreg[14] = Math.min(aplicabilidades[8]*aplicabilidades[41]*aplicabilidades[80]*aplicabilidades[81]*aplicabilidades[86],1);
+    EIPDreg[15] = Math.min(aplicabilidades[131]*aplicabilidades[62]*aplicabilidades[44]*(aplicabilidades[27]+aplicabilidades[4]+aplicabilidades[5]),1);
+    EIPDreg[16] = Math.min(aplicabilidades[1]*aplicabilidades[86],1);
+    EIPDreg[17] = Math.min((aplicabilidades[49]+aplicabilidades[50])*(aplicabilidades[128]+aplicabilidades[129]),1);
+    EIPDreg[18] = Math.min(aplicabilidades[22]*aplicabilidades[38]*(aplicabilidades[52]+aplicabilidades[53]+aplicabilidades[54]+aplicabilidades[55]+aplicabilidades[56]+aplicabilidades[57]+aplicabilidades[58]+aplicabilidades[59]+aplicabilidades[60]+aplicabilidades[61]+aplicabilidades[64]+aplicabilidades[65])*(aplicabilidades[132]+aplicabilidades[133]),1);
+    EIPDreg[19] = Math.min(((aplicabilidades[2]+aplicabilidades[1])*aplicabilidades[25])+aplicabilidades[45],1);
+    EIPDreg[20] = Math.min(aplicabilidades[13]+aplicabilidades[14],1);
+    EIPDreg[21] = Math.min(((aplicabilidades[7]+aplicabilidades[70]+aplicabilidades[6]+aplicabilidades[8])*aplicabilidades[44]*aplicabilidades[45])+(aplicabilidades[40]*(aplicabilidades[88]+aplicabilidades[85]))+((aplicabilidades[123]+aplicabilidades[67]+aplicabilidades[68]+aplicabilidades[69])*aplicabilidades[100]*aplicabilidades[41]),1);
+    EIPDreg[22] = Math.min(aplicabilidades[101]+aplicabilidades[102]+aplicabilidades[103]+aplicabilidades[37]+aplicabilidades[39],1);
+    EIPDreg[23] = Math.min(aplicabilidades[35]*aplicabilidades[12],1);
+    EIPDreg[24] = Math.min(aplicabilidades[36],1);
+    EIPDreg[25] = Math.min(aplicabilidades[46]+aplicabilidades[47]+aplicabilidades[48]+aplicabilidades[49]+aplicabilidades[45]+aplicabilidades[50],1);
+    EIPDreg[26] = Math.min((aplicabilidades[93]+aplicabilidades[91]+aplicabilidades[92])*(aplicabilidades[89]+aplicabilidades[90]),1);
+    EIPDreg[27] = Math.min(aplicabilidades[52]+aplicabilidades[53]+aplicabilidades[55]+aplicabilidades[56]+aplicabilidades[59]+aplicabilidades[60]+aplicabilidades[61]+aplicabilidades[57]+aplicabilidades[58]+aplicabilidades[62]+aplicabilidades[63]+aplicabilidades[64]+aplicabilidades[65],1);
+    EIPDreg[28] = Math.min((aplicabilidades[77]+aplicabilidades[75]+aplicabilidades[76])*aplicabilidades[96],1);
+    EIPDreg[29] = Math.min(aplicabilidades[94]+aplicabilidades[15]+aplicabilidades[16]+aplicabilidades[17]+aplicabilidades[18],1);
+    EIPDreg[30] = Math.min(0,1);
+    EIPDreg[31] = Math.min(0,1);
+    EIPDreg[32] = Math.min(0,1);
+    EIPDreg[33] = Math.min(0,1);
+    EIPDreg[34] = Math.min(0,1);
+    EIPDreg[35] = Math.min(0,1);
+    EIPDreg[36] = Math.min(0,1);
+    EIPDreg[37] = Math.min(0,1);
+    var C1 = EIPDreg[1]+EIPDreg[2]+EIPDreg[3];
+    if (C1>0) {C1=1}else{C1=0}
+    var C2 = 0;
+    for(let i=4; i<=12;i++){ 
+       C2= C2 + EIPDreg[i];
+    }
+    if (C2>1) {C2=1}else{C2=0}
+    var C3 = 0;
+    for(let i=13; i<=18;i++){ 
+       C3= C3 + EIPDreg[i];
+    }
+    if (C3>0) {C3=1}else{C3=0}
+    var C4 = 0;
+    for(let i=19; i<=29;i++){ 
+       C4= C4 + EIPDreg[i];
+    }
+    if (C4>1) {C4=1}else{C4=0}
+    var C5 = 0;
+    for(let i=30; i<=37;i++){ 
+       C5= C5 + EIPDreg[i];
+    }
+    if (C5>1) {C5=1}else{C5=0}
+    return C1+C2+C3+C4+C5;
+
+}
